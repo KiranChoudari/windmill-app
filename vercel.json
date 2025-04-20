@@ -18,12 +18,18 @@
       "continue": true
     },
     {
-      "src": "/favicon.ico",
-      "dest": "/favicon.ico"
+      "src": "/textures/(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
     },
     {
-      "src": "/manifest.json",
-      "dest": "/manifest.json"
+      "src": "/(.*\\.(js|css|json|ico|png|jpg|jpeg|gif|svg|glb))$",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
     },
     {
       "src": "/(.*)",
