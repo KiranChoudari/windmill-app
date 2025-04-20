@@ -33,6 +33,22 @@
       "continue": true
     },
     {
+      "src": "/static/js/(.*)",
+      "headers": {
+        "Content-Type": "application/javascript",
+        "cache-control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
+      "src": "/static/css/(.*)",
+      "headers": {
+        "Content-Type": "text/css",
+        "cache-control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
       "src": "/(.*\\.(js|css|ico|png|jpg|jpeg|gif|svg|glb))$",
       "headers": {
         "cache-control": "public, max-age=31536000, immutable"
@@ -41,7 +57,10 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/index.html",
+      "headers": {
+        "Content-Type": "text/html"
+      }
     }
   ]
 } 
