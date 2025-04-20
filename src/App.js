@@ -136,29 +136,32 @@ const App = () => {
       }
     );
 
-    // GUI Controls
+    // Add GUI controls
     const gui = new GUI();
-    const windControls = { 
-      windSpeed: 0, 
-      energyOutput: 0,
+    const windControls = {
+      windSpeed: 5,
       windDirection: 0,
-      rpm: 0,
-      effectiveWindSpeed: 0,
       windmill1Speed: 0,
       windmill2Speed: 0,
       windmill3Speed: 0,
-      windmill4Speed: 0
+      windmill4Speed: 0,
+      totalEnergyOutput: 0,
+      individualEnergy: [0, 0, 0, 0],
+      averageWindSpeed: 0 // Add average wind speed
     };
-    const windFolder = gui.addFolder("Windmill Stats");
-    windFolder.add(windControls, "windSpeed").name("Wind Speed (m/s)").listen();
-    windFolder.add(windControls, "windDirection").name("Wind Direction (°)").listen();
-    windFolder.add(windControls, "effectiveWindSpeed").name("Average Wind Speed (m/s)").listen();
-    windFolder.add(windControls, "windmill1Speed").name("Windmill 1 Speed (m/s)").listen();
-    windFolder.add(windControls, "windmill2Speed").name("Windmill 2 Speed (m/s)").listen();
-    windFolder.add(windControls, "windmill3Speed").name("Windmill 3 Speed (m/s)").listen();
-    windFolder.add(windControls, "windmill4Speed").name("Windmill 4 Speed (m/s)").listen();
-    windFolder.add(windControls, "energyOutput").name("Energy Output (W)").listen();
-    windFolder.open();
+
+    const windFolder = gui.addFolder('Wind Controls');
+    windFolder.add(windControls, 'windSpeed', 0, 30).name('Wind Speed (m/s)');
+    windFolder.add(windControls, 'windDirection', 0, 360).name('Wind Direction (°)');
+    windFolder.add(windControls, 'averageWindSpeed').name('Average Wind Speed (m/s)').listen();
+    
+    const energyFolder = gui.addFolder('Energy Output');
+    energyFolder.add(windControls, 'totalEnergyOutput').name('Total Energy (kW)').listen();
+    const individualEnergyFolder = energyFolder.addFolder('Individual Outputs');
+    individualEnergyFolder.add(windControls.individualEnergy, '0').name('Windmill 1 (kW)').listen();
+    individualEnergyFolder.add(windControls.individualEnergy, '1').name('Windmill 2 (kW)').listen();
+    individualEnergyFolder.add(windControls.individualEnergy, '2').name('Windmill 3 (kW)').listen();
+    individualEnergyFolder.add(windControls.individualEnergy, '3').name('Windmill 4 (kW)').listen();
 
     // Fetch Wind Speed and Direction Data
     const fetchWindData = async () => {
@@ -201,6 +204,8 @@ const App = () => {
       const minWindSpeed = 3; // Minimum wind speed for rotation (m/s)
       const maxWindSpeed = 25; // Maximum wind speed for safety (m/s)
       const speedReductionFactor = 0.3; // Factor to reduce overall speed
+      const airDensity = 1.225; // kg/m³
+      const powerCoefficient = 0.4; // Typical value for wind turbines
       
       // Initialize vectors for wind calculations
       let windVector = new THREE.Vector3();
@@ -215,6 +220,7 @@ const App = () => {
 
       // Calculate effective wind speed for each windmill
       let totalEffectiveWindSpeed = 0;
+      let totalEnergyOutput = 0;
       windmills.forEach((windmill, index) => {
         // Get windmill's forward vector based on its orientation
         const windmillForward = new THREE.Vector3(0, 0, -1);
@@ -227,6 +233,19 @@ const App = () => {
         // Calculate effective wind speed
         const effectiveWindSpeed = windControls.windSpeed * Math.abs(windComponent);
         totalEffectiveWindSpeed += effectiveWindSpeed;
+
+        // Calculate power output for this windmill
+        let powerOutput = 0;
+        if (effectiveWindSpeed >= minWindSpeed) {
+          const sweptArea = Math.PI * Math.pow(bladeRadius, 2);
+          powerOutput = 0.5 * airDensity * sweptArea * Math.pow(effectiveWindSpeed, 3) * powerCoefficient;
+          // Convert to kW
+          powerOutput /= 1000;
+        }
+        
+        // Store individual energy output
+        windControls.individualEnergy[index] = Math.round(powerOutput * 100) / 100;
+        totalEnergyOutput += powerOutput;
 
         // Update individual windmill speed in GUI
         switch(index) {
@@ -265,39 +284,11 @@ const App = () => {
         // Rotate blades based on calculated RPM and wind component direction
         const rotationSpeed = (scaledRPM * 2 * Math.PI) / (60 * fps);
         windmill.blades.rotation.y += rotationSpeed * Math.sign(windComponent);
-
-        // Debug logging for each windmill
-        if (Math.abs(windComponent - windmill.lastWindComponent) > 0.1) {
-          console.log(`Windmill ${index + 1}:`);
-          console.log('Rotation:', THREE.MathUtils.radToDeg(windmill.model.rotation.y));
-          console.log('Wind Component:', windComponent);
-          console.log('Effective Wind Speed:', effectiveWindSpeed);
-          windmill.lastWindComponent = windComponent;
-        }
       });
 
-      // Update GUI with average effective wind speed
-      windControls.effectiveWindSpeed = Math.round((totalEffectiveWindSpeed / windmills.length) * 100) / 100;
-
-      // Wind energy calculation
-      const airDensity = 1.225; // kg/m³ at sea level
-      const bladeDiameter = 5; // meters
-      const bladeArea = Math.PI * Math.pow(bladeDiameter/2, 2);
-      const powerCoefficient = 0.4; // Typical for modern wind turbines
-      
-      // Only calculate power if wind speed is above minimum threshold
-      if (windControls.windSpeed >= minWindSpeed) {
-        const alignmentFactor = Math.max(0, windVector.dot(new THREE.Vector3(0, 0, -1)));
-        windControls.energyOutput =
-          0.5 * airDensity * bladeArea * Math.pow(windControls.windSpeed, 3) * 
-          powerCoefficient * alignmentFactor * windmills.length;
-      } else {
-        windControls.energyOutput = 0;
-      }
-
-      const systemEfficiency = 0.85;
-      windControls.energyOutput *= systemEfficiency;
-      windControls.energyOutput = Math.round(windControls.energyOutput * 100) / 100;
+      // Update average wind speed and total energy output in GUI
+      windControls.averageWindSpeed = Math.round((totalEffectiveWindSpeed / windmills.length) * 100) / 100;
+      windControls.totalEnergyOutput = Math.round(totalEnergyOutput * 100) / 100;
 
       // Update wind particles
       if (windParticlesRef.current) {
